@@ -86,9 +86,9 @@ class ServidorWebTest {
     @Test
     @DisplayName("O conteúdo é escapado contra injeção de HTML")
     void escape() throws Exception {
-        String corpo = get("/partidas?de=%3Cscript%3E").body();
-        assertFalse(corpo.contains("<script>"));
-        assertTrue(corpo.contains("&lt;script&gt;"));
+        String corpo = get("/partidas?de=%3Cscript%3Ealert(1)%3C/script%3E").body();
+        assertFalse(corpo.contains("<script>alert(1)"));
+        assertTrue(corpo.contains("Data inválida: &lt;script&gt;alert(1)&lt;/script&gt;"));
     }
 
     @Test
@@ -135,24 +135,48 @@ class ServidorWebTest {
     @Test
     @DisplayName("RN07: a simulação de um visitante não afeta os dados reais nem outro visitante")
     void simulacaoIsolada() throws Exception {
-        HttpResponse<String> r = post("/simulacao/placar", "partida", "1", "gm", "7", "gv", "0");
-        assertTrue(r.body().contains("Placar da partida 1 simulado."));
-        assertTrue(r.body().contains("7 x 0 (simulado)"));
-        assertFalse(get("/partidas").body().contains("7 x 0"));
+        HttpResponse<String> r = post("/simulacao/placar", "partida", "1", "gm", "7", "gv", "0", "rodada", "1", "foco", "2");
+        assertTrue(r.uri().getQuery().contains("rodada=1"));
+        assertTrue(r.body().contains("<li id=\"jogo-2\" class=\"foco\">"), "o foco passa à partida seguinte");
+        assertTrue(r.body().contains("name=\"gm\" aria-label=\"Gols de Brasil x Noruega, mandante\" value=\"7\""));
+        assertTrue(get("/partida?id=1").body().contains("Agendada"), "o dado real não muda");
 
         HttpClient outro = HttpClient.newBuilder().cookieHandler(new CookieManager()).build();
         String outroCorpo = outro.send(HttpRequest.newBuilder(URI.create(raiz + "/simulacao")).build(),
                 HttpResponse.BodyHandlers.ofString()).body();
-        assertFalse(outroCorpo.contains("7 x 0"));
+        assertTrue(outroCorpo.contains("name=\"gm\" aria-label=\"Gols de Brasil x Noruega, mandante\" value=\"\""));
 
         r = post("/simulacao/placar", "partida", "1", "gm", "x", "gv", "0");
         assertTrue(r.body().contains("Valor numérico inválido"));
         r = post("/simulacao/aleatorio");
-        assertTrue(r.body().contains("placares aleatórios"));
-        assertEquals(200, get("/simulacao?caminho=1").statusCode());
+        assertTrue(r.body().contains("Fase de grupos preenchida com placares aleatórios."));
+        r = post("/simulacao/aleatorio", "rodada", "OITAVAS");
+        assertTrue(r.body().contains("Oitavas de final preenchida com placares aleatórios."));
+        assertTrue(r.body().contains("chave compacta"), "no mata-mata, o simulador mostra a árvore compacta");
+        r = get("/simulacao?rodada=OITAVAS&caminho=1");
+        assertEquals(200, r.statusCode());
+        assertTrue(r.body().contains("Caminho até a final"));
+        for (String rodada : new String[]{"1", "2", "3", "OITAVAS", "QUARTAS", "SEMIFINAL", "FINAL", "inexistente"}) {
+            assertEquals(200, get("/simulacao?rodada=" + rodada).statusCode(), rodada);
+        }
         r = post("/simulacao/restaurar");
         assertTrue(r.body().contains("cenário real restaurado"));
-        assertFalse(r.body().contains("(simulado)"));
+        assertFalse(r.body().contains("caixa preenchida"));
+    }
+
+    @Test
+    @DisplayName("Arquivos estáticos: CSS, JavaScript e bandeiras; caminhos inválidos são recusados")
+    void estaticos() throws Exception {
+        HttpResponse<String> css = get("/static/estilo.css");
+        assertEquals(200, css.statusCode());
+        assertTrue(css.headers().firstValue("Content-Type").orElse("").startsWith("text/css"));
+        assertEquals(200, get("/static/simulador.js").statusCode());
+        HttpResponse<String> svg = get("/static/bandeiras/br.svg");
+        assertEquals("image/svg+xml", svg.headers().firstValue("Content-Type").orElse(""));
+        assertEquals(404, get("/static/bandeiras/xx.svg").statusCode());
+        assertEquals(404, get("/static/LICENSE").statusCode());
+        assertEquals(404, get("/static/bandeiras/..%2F..%2Festilo.css").statusCode());
+        assertTrue(get("/selecoes").body().contains("/static/bandeiras/br.svg"));
     }
 
     @Test

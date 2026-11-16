@@ -7,6 +7,7 @@ import br.ufmg.dcc603.copa27.dominio.modelo.Confronto;
 import br.ufmg.dcc603.copa27.dominio.modelo.Partida;
 import br.ufmg.dcc603.copa27.dominio.modelo.RegistroAlteracao;
 import br.ufmg.dcc603.copa27.dominio.modelo.RegraNegocioException;
+import br.ufmg.dcc603.copa27.dominio.modelo.Resultado;
 import br.ufmg.dcc603.copa27.dominio.modelo.Sede;
 import br.ufmg.dcc603.copa27.dominio.modelo.Selecao;
 import br.ufmg.dcc603.copa27.dominio.modelo.SituacaoPartida;
@@ -86,12 +87,13 @@ class InterfaceAdministracao {
             req.redirecionar("/admin");
             return;
         }
-        String corpo = "<h1>Administração</h1>" + Html.mensagens(req)
-                + "<form class=\"filtros\" method=\"post\" action=\"/admin/login\">"
+        String corpo = "<form class=\"cartao login\" method=\"post\" action=\"/admin/login\">"
+                + "<h1>Administração</h1><p class=\"muted\" style=\"margin:0\">Área restrita à manutenção dos dados do torneio.</p>"
+                + Html.mensagens(req)
                 + "<label>Usuário<input name=\"login\" autocomplete=\"username\" required></label>"
                 + "<label>Senha<input type=\"password\" name=\"senha\" autocomplete=\"current-password\" required></label>"
                 + "<button type=\"submit\">Entrar</button></form>";
-        req.html(200, Html.pagina("Login", corpo, false));
+        req.html(200, Html.pagina("Login", corpo, false, "/admin", ""));
     }
 
     void sair(Requisicao req) throws IOException {
@@ -108,26 +110,51 @@ class InterfaceAdministracao {
                 .append("Inicie a partida para registrar o resultado; marque \"encerrar\" no placar final. ")
                 .append("Ao encerrar a última partida da fase de grupos, as oitavas são preenchidas automaticamente.</p>")
                 .append(Html.mensagens(req))
-                .append("<table><thead><tr><th>Nº</th><th>Data</th><th>Fase</th><th>Partida</th><th>Situação</th>")
-                .append("<th>Ações</th></tr></thead><tbody>");
+                .append("<div class=\"cartao rolagem\"><table class=\"dados\"><thead><tr><th>Nº</th><th>Data</th>")
+                .append("<th>Fase</th><th>Partida</th><th>Situação</th><th>Ações</th></tr></thead><tbody>");
         for (Partida p : consulta.listarPartidas(null)) {
             Confronto c = ch == null ? null : ch.confrontoDe(p);
             sb.append("<tr><td>").append(p.getId()).append("</td><td>").append(p.getDataHora().format(Html.DATA_HORA))
                     .append("</td><td>").append(esc(p.getFase().getDescricao()))
                     .append(p.getGrupo() == null ? "" : " " + p.getGrupo().getLetra()).append("</td><td>")
-                    .append(Html.nomeMandante(p, c == null ? null : c.getVagaMandante())).append(" x ")
-                    .append(Html.nomeVisitante(p, c == null ? null : c.getVagaVisitante())).append("</td><td>")
-                    .append(esc(p.getSituacao().getDescricao())).append("</td><td>");
+                    .append(Html.time(p.getMandante(), c == null ? null : c.getVagaMandante(), "p")).append("<br>")
+                    .append(Html.time(p.getVisitante(), c == null ? null : c.getVagaVisitante(), "p")).append("</td><td>")
+                    .append(Html.seloSituacao(p)).append("</td><td>");
             if (p.getSituacao() == SituacaoPartida.AGENDADA) {
                 sb.append("<form class=\"inline\" method=\"post\" action=\"/admin/iniciar\">")
                         .append("<input type=\"hidden\" name=\"partida\" value=\"").append(p.getId()).append("\">")
                         .append("<button type=\"submit\">Iniciar</button></form> ");
             }
-            sb.append(InterfacePublica.formularioPlacar("/admin/resultado", p, p.getSituacao() != SituacaoPartida.ENCERRADA))
-                    .append("</td></tr>");
+            sb.append(formularioPlacar(p)).append("</td></tr>");
         }
-        sb.append("</tbody></table>");
-        req.html(200, Html.pagina("Administração", sb.toString(), true));
+        sb.append("</tbody></table></div>");
+        req.html(200, Html.pagina("Administração", sb.toString(), true, "/admin", ""));
+    }
+
+    /** Formulário de placar do administrador, com prorrogação, pênaltis e encerramento. */
+    private static String formularioPlacar(Partida p) {
+        Resultado r = p.getResultado();
+        StringBuilder sb = new StringBuilder("<form class=\"form-placar\" method=\"post\" action=\"/admin/resultado\">")
+                .append("<input type=\"hidden\" name=\"partida\" value=\"").append(p.getId()).append("\">")
+                .append(caixa("gm", r == null ? null : r.getGolsMandante(), "Gols da mandante", true)).append(" x ")
+                .append(caixa("gv", r == null ? null : r.getGolsVisitante(), "Gols da visitante", true));
+        if (p.getFase().isMataMata()) {
+            sb.append("<label><input type=\"checkbox\" name=\"prorrogacao\"")
+                    .append(r != null && r.isHouveProrrogacao() ? " checked" : "").append("> prorrogação</label>")
+                    .append("<label>pên.").append(caixa("pm", r == null ? null : r.getPenaltisMandante(), "Pênaltis da mandante", false))
+                    .append(" x ").append(caixa("pv", r == null ? null : r.getPenaltisVisitante(), "Pênaltis da visitante", false))
+                    .append("</label>");
+        }
+        if (p.getSituacao() != SituacaoPartida.ENCERRADA) {
+            sb.append("<label><input type=\"checkbox\" name=\"encerrar\"> encerrar</label>");
+        }
+        return sb.append("<button type=\"submit\">Salvar</button></form>").toString();
+    }
+
+    private static String caixa(String nome, Integer valor, String rotulo, boolean obrigatoria) {
+        return "<input class=\"caixa" + (valor != null ? " preenchida" : "") + "\" type=\"number\" min=\"0\" name=\""
+                + nome + "\" aria-label=\"" + rotulo + "\" value=\"" + (valor == null ? "" : valor) + "\""
+                + (obrigatoria ? " required" : "") + ">";
     }
 
     void iniciar(Requisicao req, Administrador autor) throws IOException {
@@ -151,18 +178,20 @@ class InterfaceAdministracao {
 
     void selecoes(Requisicao req, Administrador autor) throws IOException {
         StringBuilder sb = new StringBuilder("<h1>Seleções</h1>").append(Html.mensagens(req))
-                .append("<table><thead><tr><th>Id</th><th>Editar</th><th>Remover</th></tr></thead><tbody>");
+                .append("<div class=\"cartao rolagem\"><table class=\"dados\"><thead><tr><th>Seleção</th><th>Editar</th>")
+                .append("<th>Remover</th></tr></thead><tbody>");
         for (Selecao s : consulta.listarSelecoes()) {
-            sb.append("<tr><td>").append(s.getId()).append("</td><td>").append(formularioSelecao(s))
+            sb.append("<tr><td>").append(Html.time(s, null, "p")).append("</td><td>").append(formularioSelecao(s))
                     .append("</td><td>").append(botaoRemover(TipoDado.SELECAO, s.getId(), "/admin/selecoes"))
                     .append("</td></tr>");
         }
-        sb.append("</tbody></table><h2>Cadastrar seleção</h2>").append(formularioSelecao(null));
-        req.html(200, Html.pagina("Seleções", sb.toString(), true));
+        sb.append("</tbody></table></div><h2 class=\"titulo-secao\">Cadastrar seleção</h2><div class=\"cartao\" style=\"padding:14px\">")
+                .append(formularioSelecao(null)).append("</div>");
+        req.html(200, Html.pagina("Seleções", sb.toString(), true, "/admin/selecoes", ""));
     }
 
     private static String formularioSelecao(Selecao s) {
-        StringBuilder sb = new StringBuilder("<form class=\"inline\" method=\"post\" action=\"/admin/selecoes/salvar\">")
+        StringBuilder sb = new StringBuilder("<form class=\"form-placar\" method=\"post\" action=\"/admin/selecoes/salvar\">")
                 .append("<input type=\"hidden\" name=\"id\" value=\"").append(s == null ? 0 : s.getId()).append("\">")
                 .append("<input name=\"pais\" required aria-label=\"País\" placeholder=\"País\" value=\"")
                 .append(s == null ? "" : esc(s.getPais())).append("\"> ")
@@ -201,19 +230,19 @@ class InterfaceAdministracao {
     void sedes(Requisicao req, Administrador autor) throws IOException {
         StringBuilder sb = new StringBuilder("<h1>Sedes</h1>").append(Html.mensagens(req))
                 .append("<p>Uma sede com partidas não pode ser removida.</p>")
-                .append("<table><thead><tr><th>Cidade</th><th>Estádio</th><th>Capacidade</th><th>Remover</th>")
-                .append("</tr></thead><tbody>");
+                .append("<div class=\"cartao rolagem\"><table class=\"dados\"><thead><tr><th>Cidade</th><th>Estádio</th>")
+                .append("<th>Capacidade</th><th>Remover</th></tr></thead><tbody>");
         for (Sede s : consulta.listarSedes()) {
             sb.append("<tr><td>").append(esc(s.getCidade())).append("</td><td>").append(esc(s.getEstadio().getNome()))
                     .append("</td><td>").append(s.getEstadio().getCapacidade()).append("</td><td>")
                     .append(botaoRemover(TipoDado.SEDE, s.getId(), "/admin/sedes")).append("</td></tr>");
         }
-        sb.append("</tbody></table>");
-        req.html(200, Html.pagina("Sedes", sb.toString(), true));
+        sb.append("</tbody></table></div>");
+        req.html(200, Html.pagina("Sedes", sb.toString(), true, "/admin/sedes", ""));
     }
 
     private static String botaoRemover(TipoDado tipo, int id, String voltar) {
-        return "<form class=\"inline\" method=\"post\" action=\"/admin/remover\">"
+        return "<form class=\"form-placar\" method=\"post\" action=\"/admin/remover\">"
                 + "<input type=\"hidden\" name=\"tipo\" value=\"" + tipo + "\">"
                 + "<input type=\"hidden\" name=\"id\" value=\"" + id + "\">"
                 + "<input type=\"hidden\" name=\"voltar\" value=\"" + esc(voltar) + "\">"
@@ -247,16 +276,17 @@ class InterfaceAdministracao {
         if (registros.isEmpty()) {
             sb.append("<p>Nenhuma alteração registrada.</p>");
         } else {
-            sb.append("<table><thead><tr><th>Data e hora</th><th>Autor</th><th>Operação</th><th>Dado</th></tr></thead><tbody>");
+            sb.append("<div class=\"cartao rolagem\"><table class=\"dados\"><thead><tr><th>Data e hora</th><th>Autor</th>")
+                    .append("<th>Operação</th><th>Dado</th></tr></thead><tbody>");
             for (int i = registros.size() - 1; i >= 0; i--) {
                 RegistroAlteracao r = registros.get(i);
                 sb.append("<tr><td>").append(r.getDataHora().format(Html.DATA_HORA)).append("</td><td>")
                         .append(esc(r.getAutor().getLogin())).append("</td><td>").append(esc(r.getOperacao()))
                         .append("</td><td>").append(esc(r.getDado())).append("</td></tr>");
             }
-            sb.append("</tbody></table>");
+            sb.append("</tbody></table></div>");
         }
-        req.html(200, Html.pagina("Log", sb.toString(), true));
+        req.html(200, Html.pagina("Log", sb.toString(), true, "/admin/log", ""));
     }
 
     @FunctionalInterface

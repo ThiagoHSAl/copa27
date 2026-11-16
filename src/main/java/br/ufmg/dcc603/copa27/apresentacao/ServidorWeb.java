@@ -12,6 +12,8 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.Map;
@@ -71,6 +73,11 @@ public class ServidorWeb {
 
     private void tratar(HttpExchange troca) throws IOException {
         try {
+            String caminho = troca.getRequestURI().getPath();
+            if (caminho.startsWith("/static/")) {
+                servirEstatico(troca, caminho.substring("/static/".length()));
+                return;
+            }
             Requisicao req = new Requisicao(troca);
             Rota rota = (req.isPost() ? postRotas : getRotas).get(req.caminho());
             if (rota == null) {
@@ -93,6 +100,30 @@ public class ServidorWeb {
             troca.getResponseBody().write(msg);
         } finally {
             troca.close();
+        }
+    }
+
+    /** Serve CSS, JavaScript e SVG empacotados em {@code static/}; nomes fora do padrão são recusados. */
+    private static void servirEstatico(HttpExchange troca, String nome) throws IOException {
+        String tipo = nome.endsWith(".css") ? "text/css; charset=utf-8"
+                : nome.endsWith(".js") ? "text/javascript; charset=utf-8"
+                : nome.endsWith(".svg") ? "image/svg+xml" : null;
+        InputStream in = tipo != null && nome.matches("[a-z0-9-]+(/[a-z0-9-]+)*\\.[a-z]+")
+                ? ServidorWeb.class.getResourceAsStream("/static/" + nome) : null;
+        if (in == null) {
+            troca.sendResponseHeaders(404, -1);
+            return;
+        }
+        byte[] bytes;
+        try (in) {
+            bytes = in.readAllBytes();
+        }
+        troca.getResponseHeaders().set("Content-Type", tipo);
+        troca.getResponseHeaders().set("Cache-Control", "no-cache");
+        troca.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
+        troca.sendResponseHeaders(200, bytes.length);
+        try (OutputStream out = troca.getResponseBody()) {
+            out.write(bytes);
         }
     }
 

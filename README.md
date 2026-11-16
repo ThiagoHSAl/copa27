@@ -49,7 +49,7 @@ cd copa27
 mvnw.cmd test        # Windows
 ```
 
-A saída esperada termina com `Tests run: 141, Failures: 0, Errors: 0` e `BUILD SUCCESS`.
+A saída esperada termina com `Tests run: 146, Failures: 0, Errors: 0` e `BUILD SUCCESS`.
 O relatório de cobertura do JaCoCo é gerado em `target/site/jacoco/index.html`.
 
 ### 1.4 Executar o sistema
@@ -78,7 +78,7 @@ Os dados ficam em memória: ao encerrar o processo, as alterações feitas pelo 
 
 1. **Tabela de jogos.** Use os filtros por seleção, sede, fase e datas. Uma data inicial posterior à final é rejeitada.
 2. **Classificação.** Com `--demo`, os grupos já têm dois jogos por seleção. As duas primeiras de cada grupo aparecem em destaque.
-3. **Simular cruzamentos.** Clique em "Preencher fase de grupos com placares aleatórios": as oitavas são projetadas, e os placares do mata-mata podem ser simulados até a final. Para conferir o caminho de uma seleção, use "Ver caminho". "Restaurar cenário real" descarta tudo. Em outra aba anônima, nada do que foi simulado aparece.
+3. **Simulador.** O painel da direita mostra uma rodada por vez. Para trocar, use as setas ou os atalhos R1, R2, R3, Oitavas, Quartas, Semis e Final. Ao digitar os dois números de um placar, ele é aplicado na hora, e o foco passa para a partida seguinte. A classificação, ou o chaveamento nas fases de mata-mata, é recalculada à esquerda. No mata-mata, um empate abre os campos de pênaltis. "Preencher rodada aleatoriamente" completa a rodada inteira, e "Restaurar cenário real" descarta tudo. Em outra aba anônima, nada do que foi simulado aparece.
 4. **Administração.** Faça o login. Tente registrar o resultado de uma partida agendada, o que é recusado (RN06). Depois inicie a partida, registre o placar com "encerrar" e confira a classificação e o log de alterações. Ao encerrar a última partida da fase de grupos, as oitavas são preenchidas automaticamente.
 
 ---
@@ -136,11 +136,25 @@ src/main/java/br/ufmg/dcc603/copa27/
 └── Aplicacao.java          Monta as camadas e inicia o servidor
 ```
 
-A camada de apresentação usa o servidor HTTP embutido no próprio JDK (`com.sun.net.httpserver`) e gera HTML no servidor. Dessa forma, o projeto não tem nenhuma dependência de produção, e a única biblioteca externa é o JUnit, usado apenas nos testes.
+A camada de apresentação usa o servidor HTTP embutido no próprio JDK (`com.sun.net.httpserver`) e gera HTML no servidor. Dessa forma, o projeto não tem nenhuma dependência de produção, e a única biblioteca externa é o JUnit, usado apenas nos testes. Os arquivos estáticos ficam em `src/main/resources/static/` e são servidos a partir do `.jar`:
+
+- `estilo.css`: a identidade visual;
+- `simulador.js`: o envio automático dos placares e os pênaltis no mata-mata;
+- `padrao.svg` e `marca.svg`: o padrão geométrico;
+- `bandeiras/`: as bandeiras das seleções.
+
+### Identidade visual
+
+O visual remete à identidade da Copa do Mundo Feminina Brasil 2027: amarelo, verde e branco, com o padrão de triângulos usado na divulgação do evento. Para respeitar o RNF16, não reproduz o logotipo, o troféu nem qualquer outra marca oficial: a marca e o padrão geométrico do Copa27 são desenhos próprios. As principais decisões de design são as seguintes:
+
+- **Tipografia.** Os títulos usam Barlow Condensed, e o texto, Barlow, ambas carregadas do Google Fonts. Sem internet, o navegador usa as fontes do sistema.
+- **Bandeiras.** São do projeto [flag-icons](https://github.com/lipis/flag-icons), sob licença MIT (ver `src/main/resources/static/bandeiras/LICENSE-flag-icons.txt`), e estão empacotadas no `.jar`. Por isso, a demonstração funciona sem internet. Uma seleção cadastrada pelo administrador sem bandeira conhecida exibe um selo com o código FIFA.
+- **Simulador.** Segue o modelo dos simuladores de campeonato dos portais esportivos. À direita fica um painel vertical de placares, com um seletor de rodadas que vai da fase de grupos à final. À esquerda ficam a classificação ou o chaveamento, recalculados a cada placar.
+- **Acessibilidade.** O contraste é alto e o foco fica visível na navegação por teclado (RNF06). O layout se adapta à largura de celular. Sem JavaScript, o simulador continua funcionando, com um botão "ok" em cada partida.
 
 ### Testes
 
-São 141 testes JUnit 5, distribuídos em 19 classes:
+São 146 testes JUnit 5, distribuídos em 20 classes:
 
 | Camada | Classes de teste | O que verificam |
 |---|---|---|
@@ -148,7 +162,8 @@ São 141 testes JUnit 5, distribuídos em 19 classes:
 | Domínio, regras | `ComparadorDesempateTest`, `CalculadoraClassificacaoTest`, `GeradorChaveamentoTest` | Cada critério de desempate (RN03), o cálculo da classificação, o cruzamento das oitavas (RN04), o avanço das vencedoras e a disputa de terceiro lugar |
 | Serviços | `ServicoConsultaTest`, `FiltroPartidasTest`, `ServicoCompeticaoTest`, `ServicoSimulacaoTest`, `ServicoAdministracaoTest`, `AutenticacaoAuditoriaTest` | Os fluxos principal, alternativos e de exceção dos casos de uso CU01 a CU21 do escopo |
 | Persistência | `PersistenciaMemoriaTest` | A carga inicial e o desfazimento das transações (RNF04) |
-| Integração | `TorneioCompletoTest`, `ServidorWebTest` | As 64 partidas registradas pela administração, até a campeã; e o sistema por HTTP, incluindo login, recusas e isolamento das simulações |
+| Apresentação | `ApresentacaoTest` | O seletor de rodadas do simulador, as vagas abreviadas, as bandeiras e a formatação de datas |
+| Integração | `TorneioCompletoTest`, `ServidorWebTest` | As 64 partidas registradas pela administração, até a campeã; e o sistema por HTTP, incluindo login, recusas, arquivos estáticos e isolamento das simulações |
 
 Cobertura medida pelo JaCoCo:
 
@@ -158,8 +173,8 @@ Cobertura medida pelo JaCoCo:
 | `dominio.regras` | 100,0% | 95,8% |
 | `servico` | 98,9% | 92,8% |
 | `persistencia.memoria` | 100,0% | 96,2% |
-| `apresentacao` | 91,1% | 72,4% |
-| **Total** | **95,7%** | **85,5%** |
+| `apresentacao` | 94,4% | 83,2% |
+| **Total** | **96,5%** | **87,7%** |
 
 Todas as 27 classes do domínio são exercitadas pelos testes, o que supera o mínimo de 70% exigido pelo RNF11.
 
