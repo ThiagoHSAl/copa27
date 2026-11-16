@@ -207,7 +207,7 @@ A implementação segue o Documento 05. Os pontos abaixo foram decididos ou ajus
 Conforme o item 8 das instruções do trabalho prático, o grupo declara o uso de inteligência artificial nesta Sprint.
 
 - **Ferramenta.** Foi usado o assistente Claude Code (modelo Claude Opus 5.5, da Anthropic).
-- **Forma de uso.** O assistente recebeu como entrada os documentos das Sprints 1 e 2 (requisitos, casos de uso e projetos arquitetural e detalhado, incluindo os diagramas em PlantUML) e as instruções do trabalho. A partir deles, gerou a primeira versão do código de produção, dos testes JUnit, da carga de dados fictícia e deste README.
+- **Forma de uso.** O assistente recebeu como entrada os documentos das Sprints 1 e 2 (requisitos, casos de uso e projetos arquitetural e detalhado, incluindo os diagramas em PlantUML) e as instruções do trabalho. A partir deles, auxiliou na produção da primeira versão do código de produção, dos testes JUnit, da carga de dados fictícia e deste README.
 - **Revisão pelo grupo.** O grupo revisou o código gerado, conferiu a correspondência com os diagramas de classes, de sequência e de máquina de estados e validou o comportamento do sistema executando os testes e a interface. As decisões da seção 4 foram analisadas pelo grupo.
 - **Responsabilidade.** Os integrantes são os responsáveis pelo conteúdo entregue.
 
