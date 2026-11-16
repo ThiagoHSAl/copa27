@@ -154,7 +154,7 @@ O visual remete à identidade da Copa do Mundo Feminina Brasil 2027: amarelo, ve
 
 ### Testes
 
-São 146 testes JUnit 5, distribuídos em 20 classes:
+São 146 testes JUnit 5, distribuídos em 18 classes de teste, que usam duas classes auxiliares de montagem de cenários (`Fixtures` e `Ambiente`):
 
 | Camada | Classes de teste | O que verificam |
 |---|---|---|
